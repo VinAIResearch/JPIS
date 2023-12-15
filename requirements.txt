@@ -1,0 +1,7 @@
+torch==1.7.1
+numpy
+tqdm
+fitlog
+transformers
+ordered_set
+pytorch-crf
