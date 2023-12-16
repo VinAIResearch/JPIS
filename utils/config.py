@@ -41,16 +41,15 @@ parser.add_argument('--early_stop', action='store_true', required=False)
 parser.add_argument('--patience', type=int, default=10)
 
 # Training parameters.
-parser.add_argument('--num_epoch', type=int, default=100)
-parser.add_argument('--batch_size', type=int, default=8)
+parser.add_argument('--num_epoch', type=int, default=50)
+parser.add_argument('--batch_size', type=int, default=32)
 parser.add_argument('--l2_penalty', type=float, default=1e-6)
 parser.add_argument("--learning_rate", type=float, default=8e-4)
-parser.add_argument("--bert_learning_rate", type=float, default=1e-5)
+parser.add_argument("--bert_learning_rate", type=float, default=4e-5)
 parser.add_argument('--dropout_rate', type=float, default=0.4)
-parser.add_argument('--bert_dropout_rate', type=float, default=0.1)
+parser.add_argument('--bert_dropout_rate', type=float, default=0.4)
 parser.add_argument("--use_crf", action="store_true", default=False)
 parser.add_argument("--intent_slot_coef", type=float, default=0.5)
-parser.add_argument("--aux_task", action="store_true", default=False)
 parser.add_argument("--i2s", action="store_true", default=False)
 parser.add_argument("--s2i", action="store_true", default=False)
 parser.add_argument("--up", action="store_true", default=False)
@@ -59,10 +58,10 @@ parser.add_argument("--kg", action="store_true", default=False)
 
 # Model parameters.
 parser.add_argument('--word_embedding_dim', type=int, default=64)
-parser.add_argument('--encoder_hidden_dim', type=int, default=768)
-parser.add_argument('--attention_hidden_dim', type=int, default=1024)
+parser.add_argument('--encoder_hidden_dim', type=int, default=128)
+parser.add_argument('--attention_hidden_dim', type=int, default=256)
 parser.add_argument('--attention_output_dim', type=int, default=128)
-parser.add_argument('--d_a', type=int, default=256)
+parser.add_argument('--d_a', type=int, default=128)
 parser.add_argument('--d_c', type=int, default=256)
 parser.add_argument('--intent_emb', type=int, default=128)
 parser.add_argument('--info_embedding_dim', type=int, default=128)
@@ -79,6 +78,7 @@ if args.use_pretrained:
 else:
     prefix = 'SLU'
     args.model_type = 'LSTM'
+args.use_info = args.up or args.ca or args.kg
 if args.use_info:
     prefix += '++'
 args.save_dir = os.path.join(args.save_dir, prefix, '{}_{}_{}_{}_{}_{}_{}_{}'.format(
@@ -91,7 +91,6 @@ args.save_dir = os.path.join(args.save_dir, prefix, '{}_{}_{}_{}_{}_{}_{}_{}'.fo
                                                                 args.ca,
                                                                 args.kg
                                                                 ))
-args.use_info = args.up or args.ca or args.kg
 os.makedirs(args.save_dir, exist_ok=True)
 log_path = os.path.join(args.save_dir, "config.json")
 with open(log_path, "w", encoding="utf8") as fw:
@@ -106,8 +105,7 @@ if args.model_type != 'LSTM':
         'RoBERTa': "hfl/chinese-roberta-wwm-ext",
         'BERT': "hfl/chinese-bert-wwm-ext",
         'XLNet': "hfl/chinese-xlnet-base",
-        'ELECTRA': "hfl/chinese-electra-180g-base-discriminator",
-        'XLMR': "xlm-roberta-base"
+        'ELECTRA': "hfl/chinese-electra-180g-base-discriminator"
     }
 
     args.model_type_path = model_type[args.model_type]

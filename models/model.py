@@ -20,13 +20,6 @@ class ModelManager(nn.Module):
             self.num_word,
             self.args.word_embedding_dim
         )
-        # Fusion Setting
-        if args.use_info:
-            self.hierarchical_fusion = Hierarchical_Fusion(
-                self.args.encoder_hidden_dim if args.use_pretrained else self.args.encoder_hidden_dim + self.args.attention_output_dim,
-                self.args.info_embedding_dim,
-                self.args.dropout_rate
-            )
 
         # Initialize an embedding object.
         if args.use_pretrained:
@@ -88,19 +81,23 @@ class ModelManager(nn.Module):
                 self.num_slot,
                 dropout_rate=self.args.dropout_rate
             )
-        
+        # Fusion Setting
+        if args.use_info:
+            self.hierarchical_fusion = Hierarchical_Fusion(
+                self.encoder.encoder_dim if args.use_pretrained else self.args.encoder_hidden_dim + self.args.attention_output_dim,
+                self.args.info_embedding_dim,
+                self.args.dropout_rate
+            )
         if self.args.up:
-            # self.encoder_up = nn.ModuleList([
-            #     nn.Linear(up_size, self.args.info_embedding_dim)
-            #     for up_size in len_up
-            # ])
-            self.encoder_up = nn.Linear(sum(len_up), self.args.info_embedding_dim)
+            self.encoder_up = nn.ModuleList([
+                nn.Linear(up_size, self.args.info_embedding_dim)
+                for up_size in len_up
+            ])
         if self.args.ca:
-            # self.encoder_ca = nn.ModuleList([
-            #     nn.Linear(ca_size, self.args.info_embedding_dim)
-            #     for ca_size in len_ca
-            # ])
-            self.encoder_ca = nn.Linear(sum(len_ca), self.args.info_embedding_dim)
+            self.encoder_ca = nn.ModuleList([
+                nn.Linear(ca_size, self.args.info_embedding_dim)
+                for ca_size in len_ca
+            ])
         if self.args.kg:
             self.encoder_kg = LSTMEncoder(
                 self.args.word_embedding_dim,
@@ -141,7 +138,6 @@ class ModelManager(nn.Module):
         index = 0
         for i, count_i in enumerate(count):
             output[i, :count_i] = hiddens[index: index + count_i]
-            # output.append(torch.mean(hiddens[index: index + count_i], dim=0))
             index += count_i
         output = self._cuda(output)
         return output
@@ -168,18 +164,16 @@ class ModelManager(nn.Module):
                 sent_rep = self.sentattention(hiddens, seq_lens)
         
         if self.args.up:
-            # up_emb = []
-            # for i, up in enumerate(up_var):
-            #     up_emb.append(self.encoder_up[i](up).unsqueeze(1))
-            # up_emb = torch.cat(up_emb, dim=1)
-            up_emb = self.encoder_up(torch.cat(up_var, dim=-1)).unsqueeze(1)
-        
+            up_emb = []
+            for i, up in enumerate(up_var):
+                up_emb.append(self.encoder_up[i](up).unsqueeze(1))
+            up_emb = torch.cat(up_emb, dim=1)
+                    
         if self.args.ca:
-            # ca_emb = []
-            # for i, ca in enumerate(ca_var):
-            #     ca_emb.append(self.encoder_ca[i](ca).unsqueeze(1))
-            # ca_emb = torch.cat(ca_emb, dim=1)
-            ca_emb = self.encoder_ca(torch.cat(ca_var, dim=-1)).unsqueeze(1)
+            ca_emb = []
+            for i, ca in enumerate(ca_var):
+                ca_emb.append(self.encoder_ca[i](ca).unsqueeze(1))
+            ca_emb = torch.cat(ca_emb, dim=1)
 
         if self.args.kg:
             kg_tensor = self.embedding(kg_var)
@@ -224,11 +218,6 @@ class ModelManager(nn.Module):
         if intent_labels is not None:
             intent_loss_fct = nn.CrossEntropyLoss()
             intent_loss = intent_loss_fct(pred_intent.view(-1, self.num_intent), intent_labels)
-            if self.args.aux_task:
-                fct = nn.BCEWithLogitsLoss()
-                one_hot = F.one_hot(intent_labels, num_classes=self.num_intent)
-                aux_intent = fct(intent_logit, one_hot.float())
-                intent_loss += aux_intent
             total_loss += intent_loss * self.args.intent_slot_coef
 
         attention_mask = self.sequence_mask(torch.tensor(seq_lens))
@@ -246,10 +235,6 @@ class ModelManager(nn.Module):
                     slot_loss = slot_loss_fct(active_logits, active_labels)
                 else:
                     slot_loss = slot_loss_fct(pred_slot.view(-1, self.num_slot), slot_labels.view(-1))
-            if self.args.aux_task:
-                fct = nn.BCEWithLogitsLoss()
-                aux_slot = fct(slot_logit, type_labels.float())
-                slot_loss += aux_slot
             total_loss += slot_loss * (1 - self.args.intent_slot_coef)
 
         return pred_slot, pred_intent, total_loss
@@ -259,5 +244,4 @@ class ModelManager(nn.Module):
             max_length = length.max()
         x = torch.arange(max_length, dtype=length.dtype, device=length.device)
         mask = x.unsqueeze(0) < length.unsqueeze(1)
-        # mask[:, 0] = 0
         return mask
